@@ -95,16 +95,24 @@ class SnakePlayer(list):
         self.direction = S_LEFT
 
     def turnLeft(self):
-        if snake.direction in [S_UP, S_DOWN]:
+        if snake.direction == S_UP:
             snake.changeDirectionLeft()
-        elif snake.direction in [S_LEFT, S_RIGHT]:
+        elif snake.direction == S_DOWN:
+            snake.changeDirectionRight()
+        elif snake.direction == S_LEFT:
             snake.changeDirectionDown()
+        else:
+            snake.changeDirectionUp()
 
     def turnRight(self):
-        if snake.direction in [S_UP, S_DOWN]:
+        if snake.direction == S_UP:
             snake.changeDirectionRight()
-        elif snake.direction in [S_LEFT, S_RIGHT]:
-            snake.changeDirectionRight()
+        elif snake.direction == S_DOWN:
+            snake.changeDirectionLeft()
+        elif snake.direction == S_LEFT:
+            snake.changeDirectionUp()
+        else:
+            snake.changeDirectionDown()
 
     def snakeHasCollided(self):
         self.hit = False
@@ -119,6 +127,7 @@ class SnakePlayer(list):
     def if_danger_2_ahead(self, out1, out2):
         def part(out1, out2):
             ahead2 = self.getAhead2Location()
+
             if ahead2[0] == 0 or ahead2[0] == (YSIZE - 1) or ahead2[1] == 0 or ahead2[1] == (XSIZE - 1):
                 out1()
             else:
@@ -422,7 +431,7 @@ pset.addPrimitive(snake.if_moving_down, 2)
 pset.addPrimitive(snake.if_moving_up, 2)
 pset.addPrimitive(snake.if_moving_left, 2)
 pset.addPrimitive(snake.if_moving_right, 2)
-# pset.addPrimitive(snake.if_danger_2_ahead, 2)
+pset.addPrimitive(snake.sense_danger_two_ahead, 2)
 # pset.addPrimitive(snake.if_food_higher, 2)
 
 creator.create("FitnessMax", base.Fitness, weights=(100.0, 1.0, 10.0))
@@ -451,7 +460,7 @@ def main():
     random.seed(103)
     # 103
 
-    pop = toolbox.population(n=1000)
+    pop = toolbox.population(n=2000)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
@@ -462,7 +471,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.4, 50, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 40, stats=mstats,
                                    halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
