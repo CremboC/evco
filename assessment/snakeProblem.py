@@ -116,7 +116,7 @@ class SnakePlayer(list):
         self.getAheadLocation()
         return self.ahead[0] == 0 or self.ahead[0] == (YSIZE - 1) or self.ahead[1] == 0 or self.ahead[1] == (XSIZE - 1)
 
-    def sense_danger_two_ahead(self, out1, out2):
+    def if_danger_2_ahead(self, out1, out2):
         def part(out1, out2):
             ahead2 = self.getAhead2Location()
             if ahead2[0] == 0 or ahead2[0] == (YSIZE - 1) or ahead2[1] == 0 or ahead2[1] == (XSIZE - 1):
@@ -143,9 +143,9 @@ class SnakePlayer(list):
     def if_tail_ahead(self, out1, out2):
         return partial(if_then_else, self.sense_tail_ahead, out1, out2)
 
-    def if_danger_ahead(self, out1, out2):
-        comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
-        return partial(if_then_else, comb, out1, out2)
+    # def if_danger_ahead(self, out1, out2):
+    #     comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
+    #     return partial(if_then_else, comb, out1, out2)
 
     def if_food_down(self, out1, out2):
         def part(out1, out2):
@@ -215,7 +215,7 @@ class SnakePlayer(list):
 
         out1() if loc in snake.body or location_is_wall(loc) else out2()
 
-    def if_danger_ahead_2(self, out1, out2):
+    def if_danger_ahead(self, out1, out2):
         [y, x] = snake.body[0]
         dir = snake.direction
         loc = [y, x]
@@ -229,6 +229,24 @@ class SnakePlayer(list):
             loc = [y, x - 1]
 
         out1() if loc in snake.body or location_is_wall(loc) else out2()
+
+    def if_food_same_latitude(self, out1, out2):
+    	def part(o1, o2):
+    		if len(snake.food) == 0:
+    			o2()
+    		[y, x] = snake.body[0]
+    		food = snake.food[0]
+    		o1() if y == food[0] else o2()
+    	return partial(part, out1, out2)
+
+    def if_food_same_longtitude(self, out1, out2):
+    	def part(o1, o2):
+    		if len(snake.food) == 0:
+    			o2()
+    		[y, x] = snake.body[0]
+    		food = snake.food[0]
+    		o1() if x == food[1] else o2()
+    	return partial(part, out1, out2)
 
     def _moving_direction(self, direction):
         return lambda out1, out2: out1() if snake.direction == direction else out2()
@@ -362,7 +380,7 @@ def runGame(individual):
 
 def evaluate(individual):
     totalScore, foodsEaten, timer = runGame(individual)
-    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
+    return foodsEaten, totalScore, timer
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -379,48 +397,53 @@ pset.addPrimitive(prog2, 2)
 # pset.addTerminal(snake.wall_ahead_right, name="wall_ahead_right")
 # pset.addTerminal(snake.wall_ahead_left, name="wall_ahead_left")
 # pset.addTerminal(snake.wall_ahead_up, name="wall_ahead_up")
-def if_danger_ahead_2_wrapper(out1, out2):
-    return partial(snake.if_danger_ahead_2, out1, out2)
-pset.addPrimitive(if_danger_ahead_2_wrapper, 2)
+def if_danger_ahead_wrapper(out1, out2):
+    return partial(snake.if_danger_ahead, out1, out2)
+
 def if_danger_right_wrapper(out1, out2):
     return partial(snake.if_danger_right, out1, out2)
-pset.addPrimitive(if_danger_right_wrapper, 2)
+
 def if_danger_left_wrapper(out1, out2):
     return partial(snake.if_danger_left, out1, out2)
-pset.addPrimitive(if_danger_left_wrapper, 2)
+
 # pset.addPrimitive(snake.if_wall_ahead, 2)
 # pset.addPrimitive(snake.if_tail_ahead, 2)
+pset.addPrimitive(if_danger_ahead_wrapper, 2)
+pset.addPrimitive(if_danger_right_wrapper, 2)
+pset.addPrimitive(if_danger_left_wrapper, 2)
+pset.addPrimitive(snake.if_food_same_longtitude, 2)
+# pset.addPrimitive(snake.if_food_same_latitude, 2)
 pset.addPrimitive(snake.if_food_ahead, 2)
 pset.addPrimitive(snake.if_food_up, 2)
-pset.addPrimitive(snake.if_food_down, 2)
+# pset.addPrimitive(snake.if_food_down, 2)
 pset.addPrimitive(snake.if_food_right, 2)
-pset.addPrimitive(snake.if_food_left, 2)
+# pset.addPrimitive(snake.if_food_left, 2)
 pset.addPrimitive(snake.if_moving_down, 2)
 pset.addPrimitive(snake.if_moving_up, 2)
 pset.addPrimitive(snake.if_moving_left, 2)
 pset.addPrimitive(snake.if_moving_right, 2)
-# pset.addPrimitive(snake.sense_danger_two_ahead, 2)
+# pset.addPrimitive(snake.if_danger_2_ahead, 2)
 # pset.addPrimitive(snake.if_food_higher, 2)
 
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("FitnessMax", base.Fitness, weights=(100.0, 1.0, 10.0))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
-toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=4)
+toolbox.register("expr", gp.genFull, pset=pset, min_=1, max_=4)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
-
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
-# toolbox.register("select", tools.selDoubleTournament, parsimony_size=1, fitness_size=3, fitness_first=True)
+# toolbox.register("select", tools.selDoubleTournament, parsimony_size=1.4, fitness_size=5, fitness_first=True)
 toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
-toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
+# toolbox.register("mate", gp.cxOnePoint)
+toolbox.register("expr_mut", gp.genFull, min_=0, max_=4)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
-# toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
-# toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
+toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
+toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 
 def main():
     global snake
@@ -439,7 +462,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.3, 50, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.4, 50, stats=mstats,
                                    halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
@@ -448,7 +471,7 @@ def main():
 
     import pygraphviz as pgv
     nodes, edges, labels = gp.graph(best)
-    g = pgv.AGraph(nodeSep=1.0)
+    g = pgv.AGraph(nodeSep=5.0)
     g.add_nodes_from(nodes)
     g.add_edges_from(edges)
     g.layout(prog="dot")
