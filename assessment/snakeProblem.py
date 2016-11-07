@@ -2,6 +2,7 @@
 import curses
 import random
 import operator
+import multiprocessing
 from functools import partial
 
 import numpy
@@ -254,14 +255,26 @@ class SnakePlayer(list):
     def if_moving_right(self, out1, out2):
         return partial(snake._moving_direction(S_RIGHT), out1, out2)
 
+def generatePossibleFoodLocations():
+    possibleFoodLocations = []
+    for y in range(1, YSIZE - 1):
+        for x in range(1, XSIZE - 1):
+            possibleFoodLocations.append([y, x])
+
+    return possibleFoodLocations
 
 # This function places a food item in the environment
 def placeFood(snake):
     food = []
+    possibleFoodLocations = generatePossibleFoodLocations()
     while len(food) < NFOOD:
+        if len(possibleFoodLocations) == 0:
+            return None
         potentialfood = [random.randint(1, (YSIZE - 2)), random.randint(1, (XSIZE - 2))]
+        possibleFoodLocations = filter(lambda x: x != potentialfood, possibleFoodLocations)
         if not (potentialfood in snake.body) and not (potentialfood in food):
             food.append(potentialfood)
+
     snake.food = food  # let the snake know where the food is
     return food
 
@@ -359,6 +372,8 @@ def runGame(individual):
             foodsEaten += 1
             snake.score += 1
             food = placeFood(snake)
+            if food is None:
+                return totalScore, foodsEaten, timer
             timer = 0
         else:
             snake.body.pop()
@@ -367,11 +382,6 @@ def runGame(individual):
         totalScore += snake.score
 
     return totalScore, foodsEaten, timer
-
-
-def evaluate(individual):
-    totalScore, foodsEaten, timer = runGame(individual)
-    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -420,13 +430,18 @@ toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.ex
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
+def evaluate(individual):
+    totalScore, foodsEaten, timer = runGame(individual)
+    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
-# toolbox.register("select", tools.selDoubleTournament, parsimony_size=1, fitness_size=3, fitness_first=True)
 toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+
+# pool = multiprocessing.Pool()
+# toolbox.register("map", pool.map)
 
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
@@ -448,8 +463,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 40, stats=mstats,
-                                   halloffame=hof, verbose=True)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
@@ -467,6 +481,7 @@ def main():
     g.draw("tree.pdf")
 
     raw_input("Press to continue display best run...")
+    random.seed()
     displayStrategyRun(best)
 
     # print log
@@ -475,4 +490,5 @@ def main():
 
 ## THIS IS WHERE YOUR CORE EVOLUTIONARY ALGORITHM WILL GO #
 
-main()
+if __name__ == '__main__':
+    main()
