@@ -13,6 +13,9 @@ from deap import creator
 from deap import tools
 from deap import gp
 
+S_RIGHT, S_LEFT, S_UP, S_DOWN = 0, 1, 2, 3
+XSIZE, YSIZE = 14, 14
+NFOOD = 1  # NOTE: YOU MAY NEED TO ADD A CHECK THAT THERE ARE ENOUGH SPACES LEFT FOR THE FOOD (IF THE TAIL IS VERY LONG)
 
 def progn(*args):
     for arg in args:
@@ -29,14 +32,8 @@ def prog3(out1, out2, out3):
 def if_then_else(condition, out1, out2):
     out1() if condition() else out2()
 
-
 def location_is_wall(loc):
     return loc[0] == 0 or loc[0] == (YSIZE - 1) or loc[1] == 0 or loc[1] == (XSIZE - 1)
-
-S_RIGHT, S_LEFT, S_UP, S_DOWN = 0, 1, 2, 3
-XSIZE, YSIZE = 14, 14
-NFOOD = 1  # NOTE: YOU MAY NEED TO ADD A CHECK THAT THERE ARE ENOUGH SPACES LEFT FOR THE FOOD (IF THE TAIL IS VERY LONG)
-
 
 # This class can be used to create a basic player object (snake agent)
 class SnakePlayer(list):
@@ -61,8 +58,6 @@ class SnakePlayer(list):
         self.ahead = [self.body[0][0] + (self.direction == S_DOWN and 1) + (self.direction == S_UP and -1), self.body[0][1] + (self.direction == S_LEFT and -1) + (self.direction == S_RIGHT and 1)]
 
     def getAhead2Location(self):
-        # y = self.body[0][0] + (self.direction == S_DOWN and 1) + (self.direction == S_UP and -1)
-        # x = self.body[0][1] + (self.direction == S_LEFT and -1) + (self.direction == S_RIGHT and 1)
         self.getAheadLocation()
         y, x = self.ahead
 
@@ -157,47 +152,27 @@ class SnakePlayer(list):
         comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
         return partial(if_then_else, comb, out1, out2)
 
-    def if_food_down(self, out1, out2):
-        def part(out1, out2):
-            if len(snake.food) == 0: out2()
-            first_food = snake.food[0]
-            head = snake.body[0]
-            out1() if head[0] < first_food[0] else out2()
+    def sense_food(self, cond):
+        if len(self.food) == 0: False
+        first_food = self.food[0]
+        head = self.body[0]
+        return cond(first_food, head)
 
-        return partial(part, out1, out2)
+    def sense_food_up(self):
+        return self.sense_food(lambda food, head: head[0] > food[0])
 
-    def if_food_up(self, out1, out2):
-        def part(out1, out2):
-            if len(snake.food) == 0: out2()
-            first_food = snake.food[0]
-            head = snake.body[0]
-            out1() if head[0] > first_food[0] else out2()
+    def sense_food_down(self):
+        return self.sense_food(lambda food, head: head[0] < food[0])
 
-        return partial(part, out1, out2)
+    def sense_food_left(self):
+        return self.sense_food(lambda food, head: head[1] < food[1])
 
-    def if_food_left(self, out1, out2):
-        def part(out1, out2):
-            if len(snake.food) == 0: out2()
-
-            first_food = snake.food[0]
-            head = snake.body[0]
-            out1() if head[1] < first_food[1] else out2()
-
-        return partial(part, out1, out2)
-
-    def if_food_right(self, out1, out2):
-        def part(out1, out2):
-            if len(snake.food) == 0: out2()
-
-            first_food = snake.food[0]
-            head = snake.body[0]
-            out1() if head[1] > first_food[1] else out2()
-
-        return partial(part, out1, out2)
+    def sense_food_right(self):
+        return self.sense_food(lambda food, head: head[1] > food[1]) 
 
     def if_danger_right(self, out1, out2):
-        [y, x] = snake.body[0]
-        dir = snake.direction
+        [y, x] = self.body[0]
+        dir = self.direction
         loc = [y, x]
         if dir == S_RIGHT:
             loc = [y + 1, x]
@@ -208,11 +183,11 @@ class SnakePlayer(list):
         elif dir == S_LEFT:
             loc = [y - 1, x]
 
-        out1() if loc in snake.body or location_is_wall(loc) else out2()
+        out1() if loc in self.body or location_is_wall(loc) else out2()
 
     def if_danger_left(self, out1, out2):
-        [y, x] = snake.body[0]
-        dir = snake.direction
+        [y, x] = self.body[0]
+        dir = self.direction
         loc = [y, x]
         if dir == S_RIGHT:
             loc = [y - 1, x]
@@ -223,11 +198,11 @@ class SnakePlayer(list):
         elif dir == S_LEFT:
             loc = [y + 1, x]
 
-        out1() if loc in snake.body or location_is_wall(loc) else out2()
+        out1() if loc in self.body or location_is_wall(loc) else out2()
 
     def if_danger_ahead_2(self, out1, out2):
-        [y, x] = snake.body[0]
-        dir = snake.direction
+        [y, x] = self.body[0]
+        dir = self.direction
         loc = [y, x]
         if dir == S_RIGHT:
             loc = [y, x + 1]
@@ -240,20 +215,8 @@ class SnakePlayer(list):
 
         out1() if loc in snake.body or location_is_wall(loc) else out2()
 
-    def _moving_direction(self, direction):
-        return lambda out1, out2: out1() if snake.direction == direction else out2()
-
-    def if_moving_up(self, out1, out2):
-        return partial(snake._moving_direction(S_UP), out1, out2)
-
-    def if_moving_down(self, out1, out2):
-        return partial(snake._moving_direction(S_DOWN), out1, out2)
-
-    def if_moving_left(self, out1, out2):
-        return partial(snake._moving_direction(S_LEFT), out1, out2)
-
-    def if_moving_right(self, out1, out2):
-        return partial(snake._moving_direction(S_RIGHT), out1, out2)
+    def moves_in_direction(self, direction):
+        return self.direction == direction
 
 def generatePossibleFoodLocations():
     possibleFoodLocations = []
@@ -356,32 +319,40 @@ def runGame(individual):
 
     func = toolbox.compile(expr=individual)
 
-    totalScore = 0
+    ## execute 4 times to get an average
+    absScore, absFood, absTimer = 0, 0, 0
+    rounds = 4
+    for i in range(rounds):
+        totalScore = 0
 
-    snake._reset()
-    food = placeFood(snake)
-    timer = 0
-    foodsEaten = 0
-    while not snake.snakeHasCollided() and not timer == XSIZE * YSIZE:
-        ## EXECUTE THE SNAKE'S BEHAVIOUR HERE ##
-        func()
+        snake._reset()
+        food = placeFood(snake)
+        timer = 0
+        foodsEaten = 0
+        while not snake.snakeHasCollided() and not timer == XSIZE * YSIZE:
+            ## EXECUTE THE SNAKE'S BEHAVIOUR HERE ##
+            func()
 
-        snake.updatePosition()
+            snake.updatePosition()
 
-        if snake.body[0] in food:
-            foodsEaten += 1
-            snake.score += 1
-            food = placeFood(snake)
-            if food is None:
-                return totalScore, foodsEaten, timer
-            timer = 0
-        else:
-            snake.body.pop()
-            timer += 1  # timesteps since last eaten
+            if snake.body[0] in food:
+                foodsEaten += 1
+                snake.score += 1
+                food = placeFood(snake)
+                if food is None:
+                    return totalScore, foodsEaten, timer
+                timer = 0
+            else:
+                snake.body.pop()
+                timer += 1  # timesteps since last eaten
 
-        totalScore += snake.score
+            totalScore += snake.score
 
-    return totalScore, foodsEaten, timer
+        absScore += totalScore
+        absFood += foodsEaten
+        absTimer += timer
+
+    return (absScore / rounds), (absFood / rounds), (absTimer / rounds)
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -394,32 +365,21 @@ pset.addTerminal(snake.turnRight, name="turn_right")
 
 pset.addPrimitive(prog2, 2)
 # pset.addPrimitive(prog3, 3)
-# pset.addTerminal(snake.wall_ahead_down, name="wall_ahead_down")
-# pset.addTerminal(snake.wall_ahead_right, name="wall_ahead_right")
-# pset.addTerminal(snake.wall_ahead_left, name="wall_ahead_left")
-# pset.addTerminal(snake.wall_ahead_up, name="wall_ahead_up")
-def if_danger_ahead_2_wrapper(out1, out2):
-    return partial(snake.if_danger_ahead_2, out1, out2)
-pset.addPrimitive(if_danger_ahead_2_wrapper, 2)
-def if_danger_right_wrapper(out1, out2):
-    return partial(snake.if_danger_right, out1, out2)
-pset.addPrimitive(if_danger_right_wrapper, 2)
-def if_danger_left_wrapper(out1, out2):
-    return partial(snake.if_danger_left, out1, out2)
-pset.addPrimitive(if_danger_left_wrapper, 2)
+pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_ahead_2, out1, out2), 2, name="danger_ahead_2")
+pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_right, out1, out2), 2, name="danger_right")
+pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_left, out1, out2), 2, name="danger_left")
 # pset.addPrimitive(snake.if_wall_ahead, 2)
 # pset.addPrimitive(snake.if_tail_ahead, 2)
 pset.addPrimitive(snake.if_food_ahead, 2)
-pset.addPrimitive(snake.if_food_up, 2)
-pset.addPrimitive(snake.if_food_down, 2)
-pset.addPrimitive(snake.if_food_right, 2)
-pset.addPrimitive(snake.if_food_left, 2)
-pset.addPrimitive(snake.if_moving_down, 2)
-pset.addPrimitive(snake.if_moving_up, 2)
-pset.addPrimitive(snake.if_moving_left, 2)
-pset.addPrimitive(snake.if_moving_right, 2)
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_DOWN), out1, out2), 2, name="if_moving_down")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_RIGHT), out1, out2), 2, name="if_moving_right")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
 pset.addPrimitive(snake.sense_danger_two_ahead, 2)
-# pset.addPrimitive(snake.if_food_higher, 2)
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
@@ -463,7 +423,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 27, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
