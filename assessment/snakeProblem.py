@@ -168,7 +168,7 @@ class SnakePlayer(list):
         return self.sense_food(lambda food, head: head[1] < food[1])
 
     def sense_food_right(self):
-        return self.sense_food(lambda food, head: head[1] > food[1]) 
+        return self.sense_food(lambda food, head: head[1] > food[1])
 
     def if_danger_right(self, out1, out2):
         [y, x] = self.body[0]
@@ -363,7 +363,7 @@ pset.addTerminal(lambda: True, name="do_nothing")
 pset.addTerminal(snake.turnLeft, name="turn_left")
 pset.addTerminal(snake.turnRight, name="turn_right")
 
-pset.addPrimitive(prog2, 2)
+# pset.addPrimitive(prog2, 2)
 # pset.addPrimitive(prog3, 3)
 pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_ahead_2, out1, out2), 2, name="danger_ahead_2")
 pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_right, out1, out2), 2, name="danger_right")
@@ -392,7 +392,8 @@ toolbox.register("compile", gp.compile, pset=pset)
 
 def evaluate(individual):
     totalScore, foodsEaten, timer = runGame(individual)
-    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
+    return foodsEaten,
+    # * 1000 + timer * 100 + totalScore * 10,
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
@@ -423,7 +424,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 27, stats=mstats, halloffame=hof, verbose=True)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
