@@ -17,6 +17,13 @@ S_RIGHT, S_LEFT, S_UP, S_DOWN = 0, 1, 2, 3
 XSIZE, YSIZE = 14, 14
 NFOOD = 1  # NOTE: YOU MAY NEED TO ADD A CHECK THAT THERE ARE ENOUGH SPACES LEFT FOR THE FOOD (IF THE TAIL IS VERY LONG)
 
+locMap = {
+    S_DOWN: lambda y, x: (y + 1, x),
+    S_UP: lambda y, x: (y - 1, x),
+    S_RIGHT: lambda y, x: (y, x + 1),
+    S_LEFT: lambda y, x: (y, x - 1)
+}
+
 def progn(*args):
     for arg in args:
         arg()
@@ -28,12 +35,12 @@ def prog2(out1, out2):
 def prog3(out1, out2, out3):
     return partial(progn, out1, out2, out3)
 
-
 def if_then_else(condition, out1, out2):
     out1() if condition() else out2()
 
-def location_is_wall(loc):
-    return loc[0] == 0 or loc[0] == (YSIZE - 1) or loc[1] == 0 or loc[1] == (XSIZE - 1)
+def is_wall(coord):
+    [y, x] = coord
+    return y in [0, YSIZE - 1] or x in [0, XSIZE - 1]
 
 # This class can be used to create a basic player object (snake agent)
 class SnakePlayer(list):
@@ -57,26 +64,16 @@ class SnakePlayer(list):
     def getAheadLocation(self):
         self.ahead = [self.body[0][0] + (self.direction == S_DOWN and 1) + (self.direction == S_UP and -1), self.body[0][1] + (self.direction == S_LEFT and -1) + (self.direction == S_RIGHT and 1)]
 
-    def getAhead2Location(self):
-        self.getAheadLocation()
-        y, x = self.ahead
-
-        if self.direction == S_DOWN:
-            y += 1
-        elif self.direction == S_UP:
-            y -= 1
-        elif self.direction == S_LEFT:
-            x -= 1
-        elif self.direction == S_RIGHT:
-            x += 1
-
-        return [y, x]
-
     def updatePosition(self):
         self.getAheadLocation()
         self.body.insert(0, self.ahead)
 
     ## You are free to define more sensing options to the snake
+
+    def getAhead2Location(self):
+        self.getAheadLocation()
+        y, x = self.ahead
+        return locMap[self.direction](y, x)
 
     def changeDirectionUp(self):
         self.direction = S_UP
@@ -90,26 +87,6 @@ class SnakePlayer(list):
     def changeDirectionLeft(self):
         self.direction = S_LEFT
 
-    def turnLeft(self):
-        if snake.direction == S_UP:
-            snake.changeDirectionLeft()
-        elif snake.direction == S_DOWN:
-            snake.changeDirectionRight()
-        elif snake.direction == S_LEFT:
-            snake.changeDirectionDown()
-        else:
-            snake.changeDirectionUp()
-
-    def turnRight(self):
-        if snake.direction == S_UP:
-            snake.changeDirectionRight()
-        elif snake.direction == S_DOWN:
-            snake.changeDirectionLeft()
-        elif snake.direction == S_LEFT:
-            snake.changeDirectionUp()
-        else:
-            snake.changeDirectionDown()
-
     def snakeHasCollided(self):
         self.hit = False
         if self.body[0][0] == 0 or self.body[0][0] == (YSIZE - 1) or self.body[0][1] == 0 or self.body[0][1] == (XSIZE - 1): self.hit = True
@@ -120,37 +97,45 @@ class SnakePlayer(list):
         self.getAheadLocation()
         return self.ahead[0] == 0 or self.ahead[0] == (YSIZE - 1) or self.ahead[1] == 0 or self.ahead[1] == (XSIZE - 1)
 
-    def sense_danger_two_ahead(self, out1, out2):
-        def part(out1, out2):
-            ahead2 = self.getAhead2Location()
+    # def sense_danger_two_ahead(self, out1, out2):
+    #     def part(out1, out2):
+    #         ahead2 = self.getAhead2Location()
 
-            if ahead2[0] == 0 or ahead2[0] == (YSIZE - 1) or ahead2[1] == 0 or ahead2[1] == (XSIZE - 1):
-                out1()
-            else:
-                out2()
+    #         if ahead2[0] == 0 or ahead2[0] == (YSIZE - 1) or ahead2[1] == 0 or ahead2[1] == (XSIZE - 1):
+    #             out1()
+    #         else:
+    #             out2()
 
-        return partial(part, out1, out2)
+    #     return partial(part, out1, out2)
 
-    def if_wall_ahead(self, out1, out2):
-        return partial(if_then_else, self.sense_wall_ahead, out1, out2)
+    # def if_wall_ahead(self, out1, out2):
+    #     return partial(if_then_else, self.sense_wall_ahead, out1, out2)
 
     def sense_food_ahead(self):
         self.getAheadLocation()
         return self.ahead in self.food
 
-    def if_food_ahead(self, out1, out2):
-        return partial(if_then_else, self.sense_food_ahead, out1, out2)
+    # def if_food_ahead(self, out1, out2):
+        # return partial(if_then_else, self.sense_food_ahead, out1, out2)
 
     def sense_tail_ahead(self):
         self.getAheadLocation()
         return self.ahead in self.body
 
-    def if_tail_ahead(self, out1, out2):
-        return partial(if_then_else, self.sense_tail_ahead, out1, out2)
+    def sense_danger_ahead(self):
+        return self.sense_tail_ahead() or self.sense_wall_ahead()
 
-    def if_danger_ahead(self, out1, out2):
-        comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
-        return partial(if_then_else, comb, out1, out2)
+    def sense_danger_2_ahead(self):
+        ahead2 = self.getAhead2Location()
+        return ahead2 in self.body or is_wall(ahead2)
+
+
+    # def if_tail_ahead(self, out1, out2):
+        # return partial(if_then_else, self.sense_tail_ahead, out1, out2)
+
+    # def if_danger_ahead(self, out1, out2):
+        # comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
+        # return partial(if_then_else, comb, out1, out2)
 
     def sense_food(self, cond):
         if len(self.food) == 0: False
@@ -170,6 +155,16 @@ class SnakePlayer(list):
     def sense_food_right(self):
         return self.sense_food(lambda food, head: head[1] > food[1])
 
+    def food_same_vertical(self):
+        food = self.food[0]
+        head = self.body[0]
+        return food[0] == head[0]
+
+    def food_same_horizontal(self):
+        food = self.food[0]
+        head = self.body[0]
+        return food[1] == head[1]
+
     def if_danger_right(self, out1, out2):
         [y, x] = self.body[0]
         dir = self.direction
@@ -183,7 +178,7 @@ class SnakePlayer(list):
         elif dir == S_LEFT:
             loc = [y - 1, x]
 
-        out1() if loc in self.body or location_is_wall(loc) else out2()
+        out1() if loc in self.body or is_wall(loc) else out2()
 
     def if_danger_left(self, out1, out2):
         [y, x] = self.body[0]
@@ -198,25 +193,30 @@ class SnakePlayer(list):
         elif dir == S_LEFT:
             loc = [y + 1, x]
 
-        out1() if loc in self.body or location_is_wall(loc) else out2()
+        out1() if loc in self.body or is_wall(loc) else out2()
 
-    def if_danger_ahead_2(self, out1, out2):
-        [y, x] = self.body[0]
-        dir = self.direction
-        loc = [y, x]
-        if dir == S_RIGHT:
-            loc = [y, x + 1]
-        elif dir == S_UP:
-            loc = [y - 1, x]
-        elif dir == S_DOWN:
-            loc = [y + 1, x]
-        elif dir == S_LEFT:
-            loc = [y, x - 1]
+    # def if_danger_ahead_2(self, out1, out2):
+    #     [y, x] = self.body[0]
+    #     dir = self.direction
+    #     loc = [y, x]
+    #     if dir == S_RIGHT:
+    #         loc = [y, x + 1]
+    #     elif dir == S_UP:
+    #         loc = [y - 1, x]
+    #     elif dir == S_DOWN:
+    #         loc = [y + 1, x]
+    #     elif dir == S_LEFT:
+    #         loc = [y, x - 1]
 
-        out1() if loc in snake.body or location_is_wall(loc) else out2()
+    #     out1() if loc in snake.body or is_wall(loc) else out2()
 
     def moves_in_direction(self, direction):
         return self.direction == direction
+
+    def danger_in_direction(self, direction):
+        [y, x] = self.body[0]
+        loc = locMap[direction](y, x)
+        return loc in snake.body or is_wall(loc)
 
 def generatePossibleFoodLocations():
     possibleFoodLocations = []
@@ -359,18 +359,24 @@ pset.addTerminal(snake.changeDirectionRight, name="right")
 pset.addTerminal(snake.changeDirectionDown, name="down")
 pset.addTerminal(snake.changeDirectionLeft, name="left")
 pset.addTerminal(snake.changeDirectionUp, name="up")
-pset.addTerminal(lambda: True, name="do_nothing")
-pset.addTerminal(snake.turnLeft, name="turn_left")
-pset.addTerminal(snake.turnRight, name="turn_right")
+pset.addTerminal(lambda: True, name="forward")
+# pset.addTerminal(snake.turnLeft, name="turn_left")
+# pset.addTerminal(snake.turnRight, name="turn_right")
 
-# pset.addPrimitive(prog2, 2)
+pset.addPrimitive(prog2, 2)
 # pset.addPrimitive(prog3, 3)
-pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_ahead_2, out1, out2), 2, name="danger_ahead_2")
-pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_right, out1, out2), 2, name="danger_right")
-pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_left, out1, out2), 2, name="danger_left")
+# pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_ahead_2, out1, out2), 2, name="danger_ahead_2")
+# pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_right, out1, out2), 2, name="danger_right")
+# pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_left, out1, out2), 2, name="danger_left")
 # pset.addPrimitive(snake.if_wall_ahead, 2)
 # pset.addPrimitive(snake.if_tail_ahead, 2)
-pset.addPrimitive(snake.if_food_ahead, 2)
+# pset.addPrimitive(snake.if_food_ahead, 2)
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_danger_ahead, out1, out2), 2, name="if_danger_ahead")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_danger_2_ahead, out1, out2), 2, name="if_danger_2_ahead")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_DOWN), out1, out2), 2, name="if_danger_down")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_UP), out1, out2), 2, name="if_danger_up")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_LEFT), out1, out2), 2, name="if_danger_left")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_RIGHT), out1, out2), 2, name="if_danger_right")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
@@ -379,7 +385,9 @@ pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_i
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_RIGHT), out1, out2), 2, name="if_moving_right")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
-pset.addPrimitive(snake.sense_danger_two_ahead, 2)
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_horizontal, out1, out2), 2, name="food_same_horizontal")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_vertical, out1, out2), 2, name="food_same_vertical")
+# pset.addPrimitive(snake.sense_danger_two_ahead, 2)
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
@@ -392,12 +400,13 @@ toolbox.register("compile", gp.compile, pset=pset)
 
 def evaluate(individual):
     totalScore, foodsEaten, timer = runGame(individual)
-    return foodsEaten,
-    # * 1000 + timer * 100 + totalScore * 10,
+    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
+    # return foodsEaten,
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
-toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
+toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.10)
+# toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
@@ -417,14 +426,15 @@ def main():
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
-    stats_size = tools.Statistics(len)
-    mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
+    # stats_size = tools.Statistics(len)
+    mstats = tools.MultiStatistics(fitness=stats_fit)
+    # mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
     mstats.register("avg", numpy.mean)
     mstats.register("std", numpy.std)
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 100, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
