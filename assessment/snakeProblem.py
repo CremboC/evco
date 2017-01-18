@@ -31,7 +31,6 @@ def progn(*args):
 def prog2(out1, out2):
     return partial(progn, out1, out2)
 
-
 def prog3(out1, out2, out3):
     return partial(progn, out1, out2, out3)
 
@@ -68,8 +67,6 @@ class SnakePlayer(list):
         self.getAheadLocation()
         self.body.insert(0, self.ahead)
 
-    ## You are free to define more sensing options to the snake
-
     def getAhead2Location(self):
         self.getAheadLocation()
         y, x = self.ahead
@@ -93,30 +90,16 @@ class SnakePlayer(list):
         if self.body[0] in self.body[1:]: self.hit = True
         return self.hit
 
+    ## You are free to define more sensing options to the snake
+
     def sense_wall_ahead(self):
         self.getAheadLocation()
-        return self.ahead[0] == 0 or self.ahead[0] == (YSIZE - 1) or self.ahead[1] == 0 or self.ahead[1] == (XSIZE - 1)
-
-    # def sense_danger_two_ahead(self, out1, out2):
-    #     def part(out1, out2):
-    #         ahead2 = self.getAhead2Location()
-
-    #         if ahead2[0] == 0 or ahead2[0] == (YSIZE - 1) or ahead2[1] == 0 or ahead2[1] == (XSIZE - 1):
-    #             out1()
-    #         else:
-    #             out2()
-
-    #     return partial(part, out1, out2)
-
-    # def if_wall_ahead(self, out1, out2):
-    #     return partial(if_then_else, self.sense_wall_ahead, out1, out2)
+        return is_wall(self.ahead)
+        # self.ahead[0] == 0 or self.ahead[0] == (YSIZE - 1) or self.ahead[1] == 0 or self.ahead[1] == (XSIZE - 1)
 
     def sense_food_ahead(self):
         self.getAheadLocation()
         return self.ahead in self.food
-
-    # def if_food_ahead(self, out1, out2):
-        # return partial(if_then_else, self.sense_food_ahead, out1, out2)
 
     def sense_tail_ahead(self):
         self.getAheadLocation()
@@ -129,41 +112,27 @@ class SnakePlayer(list):
         ahead2 = self.getAhead2Location()
         return ahead2 in self.body or is_wall(ahead2)
 
-
-    # def if_tail_ahead(self, out1, out2):
-        # return partial(if_then_else, self.sense_tail_ahead, out1, out2)
-
-    # def if_danger_ahead(self, out1, out2):
-        # comb = lambda: self.sense_tail_ahead() or self.sense_wall_ahead()
-        # return partial(if_then_else, comb, out1, out2)
-
-    def sense_food(self, cond):
-        if len(self.food) == 0: False
-        first_food = self.food[0]
-        head = self.body[0]
-        return cond(first_food, head)
+    # def sense_food(self, cond):
+    #     if len(self.food) == 0: False
+    #     first_food = self.food[0]
+    #     head = self.body[0]
+    #     return cond(first_food, head)
 
     def sense_food_up(self):
-        return self.sense_food(lambda food, head: head[0] > food[0])
+        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
+        return loc in self.food
 
     def sense_food_down(self):
-        return self.sense_food(lambda food, head: head[0] < food[0])
+        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
+        return loc in self.food
 
     def sense_food_left(self):
-        return self.sense_food(lambda food, head: head[1] < food[1])
+        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
+        return loc in self.food
 
     def sense_food_right(self):
-        return self.sense_food(lambda food, head: head[1] > food[1])
-
-    def food_same_vertical(self):
-        food = self.food[0]
-        head = self.body[0]
-        return food[0] == head[0]
-
-    def food_same_horizontal(self):
-        food = self.food[0]
-        head = self.body[0]
-        return food[1] == head[1]
+        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
+        return loc in self.food
 
     def if_danger_right(self, out1, out2):
         [y, x] = self.body[0]
@@ -195,21 +164,6 @@ class SnakePlayer(list):
 
         out1() if loc in self.body or is_wall(loc) else out2()
 
-    # def if_danger_ahead_2(self, out1, out2):
-    #     [y, x] = self.body[0]
-    #     dir = self.direction
-    #     loc = [y, x]
-    #     if dir == S_RIGHT:
-    #         loc = [y, x + 1]
-    #     elif dir == S_UP:
-    #         loc = [y - 1, x]
-    #     elif dir == S_DOWN:
-    #         loc = [y + 1, x]
-    #     elif dir == S_LEFT:
-    #         loc = [y, x - 1]
-
-    #     out1() if loc in snake.body or is_wall(loc) else out2()
-
     def moves_in_direction(self, direction):
         return self.direction == direction
 
@@ -217,6 +171,16 @@ class SnakePlayer(list):
         [y, x] = self.body[0]
         loc = locMap[direction](y, x)
         return loc in snake.body or is_wall(loc)
+
+    def food_same_vertical(self):
+        food = self.food[0]
+        head = self.body[0]
+        return food[0] == head[0]
+
+    def food_same_horizontal(self):
+        food = self.food[0]
+        head = self.body[0]
+        return food[1] == head[1]
 
 def generatePossibleFoodLocations():
     possibleFoodLocations = []
@@ -364,7 +328,7 @@ pset.addTerminal(lambda: True, name="forward")
 # pset.addTerminal(snake.turnRight, name="turn_right")
 
 pset.addPrimitive(prog2, 2)
-# pset.addPrimitive(prog3, 3)
+pset.addPrimitive(prog3, 3)
 # pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_ahead_2, out1, out2), 2, name="danger_ahead_2")
 # pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_right, out1, out2), 2, name="danger_right")
 # pset.addPrimitive(lambda out1, out2: partial(snake.if_danger_left, out1, out2), 2, name="danger_left")
@@ -385,8 +349,8 @@ pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_i
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_RIGHT), out1, out2), 2, name="if_moving_right")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
-# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_horizontal, out1, out2), 2, name="food_same_horizontal")
-# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_vertical, out1, out2), 2, name="food_same_vertical")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_horizontal, out1, out2), 2, name="food_same_horizontal")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_vertical, out1, out2), 2, name="food_same_vertical")
 # pset.addPrimitive(snake.sense_danger_two_ahead, 2)
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -405,10 +369,11 @@ def evaluate(individual):
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
-toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.10)
+toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
 # toolbox.register("mate", gp.cxOnePoint)
-toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+toolbox.register("expr_mut", gp.genFull, min_=0, max_=3)
+# toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
 # pool = multiprocessing.Pool()
 # toolbox.register("map", pool.map)
@@ -419,16 +384,16 @@ toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max
 def main():
     global snake
     global pset
-    random.seed(103)
+    random.seed(107)
     # 103
 
-    pop = toolbox.population(n=2000)
+    pop = toolbox.population(n=500)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
-    # stats_size = tools.Statistics(len)
-    mstats = tools.MultiStatistics(fitness=stats_fit)
-    # mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
+    stats_size = tools.Statistics(len)
+    # mstats = tools.MultiStatistics(fitness=stats_fit)
+    mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
     mstats.register("avg", numpy.mean)
     mstats.register("std", numpy.std)
     mstats.register("min", numpy.min)
