@@ -15,6 +15,7 @@ from deap import gp
 
 S_RIGHT, S_LEFT, S_UP, S_DOWN = 0, 1, 2, 3
 XSIZE, YSIZE = 14, 14
+TOTAL_SIZE = YSIZE * XSIZE
 NFOOD = 1  # NOTE: YOU MAY NEED TO ADD A CHECK THAT THERE ARE ENOUGH SPACES LEFT FOR THE FOOD (IF THE TAIL IS VERY LONG)
 
 locMap = {
@@ -23,6 +24,11 @@ locMap = {
     S_RIGHT: lambda y, x: (y, x + 1),
     S_LEFT: lambda y, x: (y, x - 1)
 }
+
+# locations = set()
+# for y in range(YSIZE):
+#     for x in range(XSIZE):
+#         locations.add([y, x])
 
 def progn(*args):
     for arg in args:
@@ -284,7 +290,7 @@ def runGame(individual):
     func = toolbox.compile(expr=individual)
 
     ## execute 4 times to get an average
-    absScore, absFood, absTimer = 0, 0, 0
+    absScore, absFood, absTimer, absFinished, absVisited = 0, 0, 0, 0, 0
     rounds = 4
     for i in range(rounds):
         totalScore = 0
@@ -293,11 +299,22 @@ def runGame(individual):
         food = placeFood(snake)
         timer = 0
         foodsEaten = 0
+
+        locations = set()
+        timesFinished = 0
+        visited = 0
         while not snake.snakeHasCollided() and not timer == XSIZE * YSIZE:
             ## EXECUTE THE SNAKE'S BEHAVIOUR HERE ##
             func()
 
             snake.updatePosition()
+
+            head = snake.body[0]
+            locations.add("{},{}".format(head[0], head[1]))
+            visited = len(locations)
+            if len(locations) == TOTAL_SIZE:
+                timesFinished += 1
+                locations = set()
 
             if snake.body[0] in food:
                 foodsEaten += 1
@@ -315,8 +332,11 @@ def runGame(individual):
         absScore += totalScore
         absFood += foodsEaten
         absTimer += timer
+        absFinished += timesFinished
+        absVisited += visited
 
-    return (absScore / rounds), (absFood / rounds), (absTimer / rounds)
+    stepsCriteria = absFinished * TOTAL_SIZE + absVisited
+    return (absScore / rounds), (absFood / rounds), (absTimer / rounds), (stepsCriteria / rounds)
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -341,16 +361,16 @@ pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_UP), out1, out2), 2, name="if_danger_up")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_LEFT), out1, out2), 2, name="if_danger_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_RIGHT), out1, out2), 2, name="if_danger_right")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_DOWN), out1, out2), 2, name="if_moving_down")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_RIGHT), out1, out2), 2, name="if_moving_right")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_horizontal, out1, out2), 2, name="food_same_horizontal")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_vertical, out1, out2), 2, name="food_same_vertical")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_horizontal, out1, out2), 2, name="food_same_horizontal")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.food_same_vertical, out1, out2), 2, name="food_same_vertical")
 # pset.addPrimitive(snake.sense_danger_two_ahead, 2)
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -363,9 +383,9 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
 def evaluate(individual):
-    totalScore, foodsEaten, timer = runGame(individual)
-    return foodsEaten * 1000 + timer * 100 + totalScore * 10,
-    # return foodsEaten,
+    totalScore, foodsEaten, timer, steps = runGame(individual)
+    # return foodsEaten * 1000 + timer * 100 + totalScore * 10,
+    return steps,
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
@@ -384,10 +404,10 @@ toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max
 def main():
     global snake
     global pset
-    random.seed(107)
+    random.seed(109)
     # 103
 
-    pop = toolbox.population(n=500)
+    pop = toolbox.population(n=300)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
