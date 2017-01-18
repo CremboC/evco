@@ -118,12 +118,6 @@ class SnakePlayer(list):
         ahead2 = self.getAhead2Location()
         return ahead2 in self.body or is_wall(ahead2)
 
-    # def sense_food(self, cond):
-    #     if len(self.food) == 0: False
-    #     first_food = self.food[0]
-    #     head = self.body[0]
-    #     return cond(first_food, head)
-
     def sense_food_up(self):
         loc = locMap[S_UP](self.body[0][0], self.body[0][1])
         return loc in self.food
@@ -177,6 +171,12 @@ class SnakePlayer(list):
         [y, x] = self.body[0]
         loc = locMap[direction](y, x)
         return loc in snake.body or is_wall(loc)
+
+    def danger_2_in_direction(self, direction):
+        [y, x] = self.body[0]
+        [y1, x1] = locMap[direction](y, x)
+        loc = locMap[direction](y1, x1)
+        return loc in snake.body or is_wall(loc) 
 
     def food_same_vertical(self):
         food = self.food[0]
@@ -321,7 +321,7 @@ def runGame(individual):
                 snake.score += 1
                 food = placeFood(snake)
                 if food is None:
-                    return totalScore, foodsEaten, timer
+                    return totalScore, foodsEaten, timer, 999
                 timer = 0
             else:
                 snake.body.pop()
@@ -358,9 +358,13 @@ pset.addPrimitive(prog3, 3)
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_danger_ahead, out1, out2), 2, name="if_danger_ahead")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_danger_2_ahead, out1, out2), 2, name="if_danger_2_ahead")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_DOWN), out1, out2), 2, name="if_danger_down")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_2_in_direction, S_DOWN), out1, out2), 2, name="if_danger_2_down")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_UP), out1, out2), 2, name="if_danger_up")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_2_in_direction, S_UP), out1, out2), 2, name="if_danger_2_up")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_LEFT), out1, out2), 2, name="if_danger_left")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_2_in_direction, S_LEFT), out1, out2), 2, name="if_danger_2_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_in_direction, S_RIGHT), out1, out2), 2, name="if_danger_right")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.danger_2_in_direction, S_RIGHT), out1, out2), 2, name="if_danger_2_right")
 # pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
 # pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
 # pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
@@ -404,10 +408,10 @@ toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max
 def main():
     global snake
     global pset
-    random.seed(109)
+    random.seed(118)
     # 103
 
-    pop = toolbox.population(n=300)
+    pop = toolbox.population(n=500)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
@@ -419,7 +423,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 100, stats=mstats, halloffame=hof, verbose=True)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 30, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
