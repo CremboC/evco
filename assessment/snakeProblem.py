@@ -309,9 +309,11 @@ def runGame(individual):
 
             snake.updatePosition()
 
-            head = snake.body[0]
-            locations.add("{},{}".format(head[0], head[1]))
-            visited = len(locations)
+            loc = "{},{}".format(snake.body[0][0], snake.body[0][1])
+            if loc not in locations:
+                locations.add(loc)
+                visited += 1
+
             if len(locations) == TOTAL_SIZE:
                 timesFinished += 1
                 locations = set()
@@ -321,6 +323,7 @@ def runGame(individual):
                 snake.score += 1
                 food = placeFood(snake)
                 if food is None:
+                    # found perfect snake, since it completes the game
                     return totalScore, foodsEaten, timer, 999
                 timer = 0
             else:
@@ -332,10 +335,10 @@ def runGame(individual):
         absScore += totalScore
         absFood += foodsEaten
         absTimer += timer
-        absFinished += timesFinished
+        absFinished += timesFinished * TOTAL_SIZE
         absVisited += visited
 
-    stepsCriteria = absFinished * TOTAL_SIZE + absVisited
+    stepsCriteria = absFinished + absVisited
     return (absScore / rounds), (absFood / rounds), (absTimer / rounds), (stepsCriteria / rounds)
 
 pset = gp.PrimitiveSet("MAIN", 0)
