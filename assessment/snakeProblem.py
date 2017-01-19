@@ -270,7 +270,9 @@ def runGame(individual):
                 locations.add(loc)
                 visited += 1
 
-            if len(locations) == TOTAL_SIZE:
+            # print len(locations)
+
+            if len(locations) == 144:
                 timesFinished += 1
                 locations = set()
 
@@ -280,7 +282,8 @@ def runGame(individual):
                 food = placeFood(snake)
                 if food is None:
                     # found perfect snake, since it completes the game
-                    return totalScore, 999, timer, 999
+                    # print len(locations)
+                    return totalScore, 99999, timer, 99999
                 timer = 0
             else:
                 snake.body.pop()
@@ -340,6 +343,7 @@ def evaluate(individual):
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
 toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
+# toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=3)
 toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
@@ -354,7 +358,7 @@ def main(argv):
     global pset
     
     if len(argv) == 0:
-        random.seed(1)
+        random.seed(118)
     else:
         random.seed(int(argv[0]))
 
@@ -370,41 +374,35 @@ def main(argv):
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=False)
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
+    # pop, log = algorithms.eaMuCommaLambda(pop, toolbox, 500, 500, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
 
-    # print best
+    print best
     # print 
-    return evaluate(best)[0] 
+    # return evaluate(best)[0] 
 
-    # import pygraphviz as pgv
-    # nodes, edges, labels = gp.graph(best)
-    # g = pgv.AGraph(nodeSep=1.0)
-    # g.add_nodes_from(nodes)
-    # g.add_edges_from(edges)
-    # g.layout(prog="dot")
-    # for i in nodes:
-    #     n = g.get_node(i)
-    #     n.attr["label"] = labels[i]
-    # g.draw("tree.pdf")
+    import pygraphviz as pgv
+    nodes, edges, labels = gp.graph(best)
+    g = pgv.AGraph(nodeSep=1.0)
+    g.add_nodes_from(nodes)
+    g.add_edges_from(edges)
+    g.layout(prog="dot")
+    for i in nodes:
+        n = g.get_node(i)
+        n.attr["label"] = labels[i]
+    g.draw("tree.pdf")
 
-    # raw_input("Press to continue display best run...")
-    # random.seed()
-    # displayStrategyRun(best)
+    raw_input("Press to continue display best run...")
+    random.seed()
+    displayStrategyRun(best)
 
-    # print log
-    # return pop, log, hof
+    print log
+    return pop, log, hof
 
 
 ## THIS IS WHERE YOUR CORE EVOLUTIONARY ALGORITHM WILL GO #
 
 if __name__ == '__main__':
-    scores = []
-    for i in range(50, 100):
-        print i
-        scores.append(main([i]))
-
-    print scores
-    numpy.histogram(scores)
-        # main(sys.argv[1:])
+    main(sys.argv[1:])
