@@ -347,20 +347,22 @@ toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=3)
 toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
-# pool = multiprocessing.Pool()
-# toolbox.register("map", pool.map)
-
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 
-def main(argv):
+def main(seed = 118):
     global snake
     global pset
+    global toolbox
+
+    pool = multiprocessing.Pool()
+    toolbox.register("map", pool.map)
+
+    # seed = 118
+    # if len(argv) == 1:
+    #     seed = int(argv[0])
     
-    if len(argv) == 0:
-        random.seed(118)
-    else:
-        random.seed(int(argv[0]))
+    random.seed(seed)
 
     pop = toolbox.population(n=500)
     hof = tools.HallOfFame(5)
@@ -377,32 +379,35 @@ def main(argv):
     pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
     # pop, log = algorithms.eaMuCommaLambda(pop, toolbox, 500, 500, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
 
-    best = tools.selBest(pop, 1)[0]
+    # best = tools.selBest(pop, 1)[0]
 
-    print best
+    # print best
     # print 
     # return evaluate(best)[0] 
 
-    import pygraphviz as pgv
-    nodes, edges, labels = gp.graph(best)
-    g = pgv.AGraph(nodeSep=1.0)
-    g.add_nodes_from(nodes)
-    g.add_edges_from(edges)
-    g.layout(prog="dot")
-    for i in nodes:
-        n = g.get_node(i)
-        n.attr["label"] = labels[i]
-    g.draw("tree.pdf")
+    # import pygraphviz as pgv
+    # nodes, edges, labels = gp.graph(best)
+    # g = pgv.AGraph(nodeSep=1.0)
+    # g.add_nodes_from(nodes)
+    # g.add_edges_from(edges)
+    # g.layout(prog="dot")
+    # for i in nodes:
+    #     n = g.get_node(i)
+    #     n.attr["label"] = labels[i]
+    # g.draw("tree.pdf")
 
-    raw_input("Press to continue display best run...")
-    random.seed()
-    displayStrategyRun(best)
+    # if raw_input("Display best run? Y/N...") == 'Y':
+    #     random.seed()
+    #     displayStrategyRun(best)
 
-    print log
-    return pop, log, hof
+    with open('log-{}.txt'.format(seed), 'w') as f:
+        f.truncate()
+        f.write(str(log))
 
 
 ## THIS IS WHERE YOUR CORE EVOLUTIONARY ALGORITHM WILL GO #
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    [f, t] = sys.argv[1:]
+    for i in xrange(int(f), int(t)):
+        main(i)
