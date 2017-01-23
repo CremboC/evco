@@ -17,7 +17,7 @@ from deap import gp
 
 S_RIGHT, S_LEFT, S_UP, S_DOWN = 0, 1, 2, 3
 XSIZE, YSIZE = 14, 14
-TOTAL_SIZE = YSIZE * XSIZE
+TOTAL_SIZE = (YSIZE - 2) * (XSIZE - 2)
 NFOOD = 1  # NOTE: YOU MAY NEED TO ADD A CHECK THAT THERE ARE ENOUGH SPACES LEFT FOR THE FOOD (IF THE TAIL IS VERY LONG)
 
 locMap = {
@@ -114,21 +114,23 @@ class SnakePlayer(list):
         ahead2 = self.getAhead2Location()
         return ahead2 in self.body or is_wall(ahead2)
 
+    def sense_food(self, cond):
+        if len(self.food) == 0: False
+        first_food = self.food[0]
+        head = self.body[0]
+        return cond(first_food, head)
+
     def sense_food_up(self):
-        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
-        return loc in self.food
+        return self.sense_food(lambda food, head: head[0] > food[0])
 
     def sense_food_down(self):
-        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
-        return loc in self.food
+        return self.sense_food(lambda food, head: head[0] < food[0])
 
     def sense_food_left(self):
-        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
-        return loc in self.food
+        return self.sense_food(lambda food, head: head[1] < food[1])
 
     def sense_food_right(self):
-        loc = locMap[S_UP](self.body[0][0], self.body[0][1])
-        return loc in self.food
+        return self.sense_food(lambda food, head: head[1] > food[1])
 
     def moves_in_direction(self, direction):
         return self.direction == direction
@@ -245,60 +247,55 @@ def runGame(individual):
 
     func = toolbox.compile(expr=individual)
 
-    ## execute 4 times to get an average
-    absScore, absFood, absTimer, absFinished, absVisited = 0, 0, 0, 0, 0
-    rounds = 4
-    for i in range(rounds):
-        totalScore = 0
+    totalScore = 0
 
-        snake._reset()
-        food = placeFood(snake)
-        timer = 0
-        foodsEaten = 0
+    snake._reset()
+    food = placeFood(snake)
+    timer = 0
 
-        locations = set()
-        timesFinished = 0
-        visited = 0
-        while not snake.snakeHasCollided() and not timer == XSIZE * YSIZE:
-            ## EXECUTE THE SNAKE'S BEHAVIOUR HERE ##
-            func()
+    locations = set()
+    timesFinished = 0
+    visited = 0
+    timeSurvived = 0
+    while not snake.snakeHasCollided() and not timer == XSIZE * YSIZE:
+        ## EXECUTE THE SNAKE'S BEHAVIOUR HERE ##
+        func()
 
-            snake.updatePosition()
+        snake.updatePosition()
 
-            loc = "{},{}".format(snake.body[0][0], snake.body[0][1])
-            if loc not in locations:
-                locations.add(loc)
-                visited += 1
+        loc = "{},{}".format(snake.body[0][0], snake.body[0][1])
+        if loc not in locations:
+            locations.add(loc)
+            visited += 1
 
-            # print len(locations)
+        if len(locations) == TOTAL_SIZE:
+            timesFinished += 1
+            locations = set()
 
-            if len(locations) == 144:
-                timesFinished += 1
-                locations = set()
+        if snake.body[0] in food:
+            snake.score += 1
+            food = placeFood(snake)
+            if food is None:
+                # found perfect snake, since it completes the game
+                return totalScore, snake.score, 99999, timeSurvived
+            timer = 0
+        else:
+            snake.body.pop()
+            timer += 1  # timesteps since last eaten
 
-            if snake.body[0] in food:
-                foodsEaten += 1
-                snake.score += 1
-                food = placeFood(snake)
-                if food is None:
-                    # found perfect snake, since it completes the game
-                    # print len(locations)
-                    return totalScore, 99999, timer, 99999
-                timer = 0
-            else:
-                snake.body.pop()
-                timer += 1  # timesteps since last eaten
+        timeSurvived += 1
+        totalScore += snake.score
 
-            totalScore += snake.score
+    return totalScore, snake.score, (timesFinished * TOTAL_SIZE + visited), timeSurvived
 
-        absScore += totalScore
-        absFood += foodsEaten
-        absTimer += timer
-        absFinished += timesFinished * TOTAL_SIZE
-        absVisited += visited
+        # absScore += totalScore
+        # absFood += snake.score
+        # absFinished += timesFinished * TOTAL_SIZE
+        # absVisited += visited
+        # absTime += timeSurvived
 
-    stepsCriteria = absFinished + absVisited
-    return (absScore / rounds), (absFood / rounds), (absTimer / rounds), (stepsCriteria / rounds)
+    # stepsCriteria = absFinished + absVisited
+    # return (absScore / rounds), (absFood / rounds), (stepsCriteria / rounds), (timeSurvived / rounds)
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -327,18 +324,58 @@ pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_i
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
 
+# food sensing
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
+pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
+
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
-toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=4)
+toolbox.register("expr", gp.genFull, pset=pset, min_=1, max_=4)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
 def evaluate(individual):
-    totalScore, foodsEaten, timer, steps = runGame(individual)
-    return steps,
+    ## execute 4 times to get an average
+    absScore, absFood, absSteps, absTime = 0, 0, 0, 0
+    rounds = 4
+    for i in range(rounds):    
+        totalScore, foodsEaten, steps, timeSurvived = runGame(individual)
+
+        absScore += totalScore
+        absFood += foodsEaten
+        absSteps += steps
+        absTime += timeSurvived
+
+    avgScore = (absScore / rounds)
+    avgFoodEaten = (absFood / rounds)
+    avgSteps = (absSteps / rounds)
+    avgTimeSurvived = (absTime / rounds)
+
+    return avgFoodEaten * 1000 + avgTimeSurvived * 10 + avgScore * 10,
+
+def evaluateByFood(individual):
+    ## execute 4 times to get an average
+    absScore, absFood, absSteps, absTime = 0, 0, 0, 0
+    rounds = 4
+    for i in range(rounds):    
+        totalScore, foodsEaten, steps, timeSurvived = runGame(individual)
+
+        absScore += totalScore
+        absFood += foodsEaten
+        absSteps += steps
+        absTime += timeSurvived
+
+    avgScore = (absScore / rounds)
+    avgFoodEaten = (absFood / rounds)
+    avgSteps = (absSteps / rounds)
+    avgTimeSurvived = (absTime / rounds)
+
+    return avgFoodEaten
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("select", tools.selTournament, tournsize=5)
@@ -346,6 +383,7 @@ toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
 # toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=3)
 toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
+# toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
@@ -355,12 +393,8 @@ def main(seed = 118):
     global pset
     global toolbox
 
-    pool = multiprocessing.Pool()
-    toolbox.register("map", pool.map)
-
-    # seed = 118
-    # if len(argv) == 1:
-    #     seed = int(argv[0])
+    # pool = multiprocessing.Pool()
+    # toolbox.register("map", pool.map)
     
     random.seed(seed)
 
@@ -375,13 +409,18 @@ def main(seed = 118):
     mstats.register("std", numpy.std)
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
+    # mstats.register("q",   lambda a: numpy.percentile(a, [25, 75]))
 
     pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
-    # pop, log = algorithms.eaMuCommaLambda(pop, toolbox, 500, 500, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
 
-    # best = tools.selBest(pop, 1)[0]
+
+
+    best = tools.selBest(pop, 1)[0]
+
+    # foodFitness = evaluateByFood(best)
 
     # print best
+    # print evaluateByFood(best)
     # print 
     # return evaluate(best)[0] 
 
@@ -396,13 +435,21 @@ def main(seed = 118):
     #     n.attr["label"] = labels[i]
     # g.draw("tree.pdf")
 
-    # if raw_input("Display best run? Y/N...") == 'Y':
+    # if raw_input("Display best run? Y/N...") in ['Y', 'y']:
     #     random.seed()
     #     displayStrategyRun(best)
 
-    with open('log-{}.txt'.format(seed), 'w') as f:
-        f.truncate()
-        f.write(str(log))
+    import cPickle as pickle
+
+    # pickle.dump(log, open('fitness/fitness-{}.txt'.format(seed), 'wb'), -1)
+    pickle.dump({
+            'foodsEaten': evaluateByFood(best)
+        }, open('initialisation/genFull/best-{}.txt'.format(seed), 'wb'), -1)
+
+
+    # with open('fitness-{}.txt'.format(seed), 'w') as f:
+        # f.truncate()
+        # f.write(str(log))
 
 
 ## THIS IS WHERE YOUR CORE EVOLUTIONARY ALGORITHM WILL GO #
