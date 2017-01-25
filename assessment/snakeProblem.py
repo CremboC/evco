@@ -2,12 +2,9 @@
 import curses
 import random
 import operator
-import multiprocessing
 from functools import partial
 
 import numpy
-
-import sys
 
 from deap import algorithms
 from deap import base
@@ -242,10 +239,13 @@ def displayStrategyRun(individual):
 # you need to modify it for running your agents through the game for evaluation
 # which will depend on what type of EA you have used, etc.
 # Feel free to make any necessary modifications to this section.
-def runGame(individual):
+def runGame(individual, compiled=False):
     global snake
 
-    func = toolbox.compile(expr=individual)
+    if not compiled:
+        func = toolbox.compile(expr=individual)
+    else:
+        func = individual
 
     totalScore = 0
 
@@ -276,7 +276,7 @@ def runGame(individual):
             snake.score += 1
             food = placeFood(snake)
             if food is None:
-                # found perfect snake, since it completes the game
+                # found perfect snake. inability to place food means the grid is filled by the snake
                 return totalScore, snake.score, 99999, timeSurvived
             timer = 0
         else:
@@ -287,15 +287,6 @@ def runGame(individual):
         totalScore += snake.score
 
     return totalScore, snake.score, (timesFinished * TOTAL_SIZE + visited), timeSurvived
-
-        # absScore += totalScore
-        # absFood += snake.score
-        # absFinished += timesFinished * TOTAL_SIZE
-        # absVisited += visited
-        # absTime += timeSurvived
-
-    # stepsCriteria = absFinished + absVisited
-    # return (absScore / rounds), (absFood / rounds), (stepsCriteria / rounds), (timeSurvived / rounds)
 
 pset = gp.PrimitiveSet("MAIN", 0)
 pset.addTerminal(snake.changeDirectionRight, name="right")
@@ -324,27 +315,29 @@ pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_i
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_LEFT), out1, out2), 2, name="if_moving_left")
 pset.addPrimitive(lambda out1, out2: partial(if_then_else, partial(snake.moves_in_direction, S_UP), out1, out2), 2, name="if_moving_up")
 
-# food sensing
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
-pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
+# food sensing, used for Food&Time fitness function
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_up, out1, out2), 2, name="if_food_up")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_down, out1, out2), 2, name="if_food_down")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_left, out1, out2), 2, name="if_food_left")
+# pset.addPrimitive(lambda out1, out2: partial(if_then_else, snake.sense_food_right, out1, out2), 2, name="if_food_right")
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
-toolbox.register("expr", gp.genFull, pset=pset, min_=1, max_=4)
+toolbox.register("expr", gp.genGrow, pset=pset, min_=1, max_=4)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
-def evaluate(individual):
+def stepsFitness(individual):
     ## execute 4 times to get an average
+    func = toolbox.compile(expr=individual)
+
     absScore, absFood, absSteps, absTime = 0, 0, 0, 0
     rounds = 4
     for i in range(rounds):    
-        totalScore, foodsEaten, steps, timeSurvived = runGame(individual)
+        totalScore, foodsEaten, steps, timeSurvived = runGame(func, compiled=True)
 
         absScore += totalScore
         absFood += foodsEaten
@@ -356,7 +349,28 @@ def evaluate(individual):
     avgSteps = (absSteps / rounds)
     avgTimeSurvived = (absTime / rounds)
 
-    return avgFoodEaten * 1000 + avgTimeSurvived * 10 + avgScore * 10,
+    return avgSteps,
+
+def foodAndTimeFitness(individual):
+    ## execute 4 times to get an average
+    func = toolbox.compile(expr=individual)
+
+    absScore, absFood, absSteps, absTime = 0, 0, 0, 0
+    rounds = 4
+    for i in range(rounds):    
+        totalScore, foodsEaten, steps, timeSurvived = runGame(func, compiled=True)
+
+        absScore += totalScore
+        absFood += foodsEaten
+        absSteps += steps
+        absTime += timeSurvived
+
+    avgScore = (absScore / rounds)
+    avgFoodEaten = (absFood / rounds)
+    avgSteps = (absSteps / rounds)
+    avgTimeSurvived = (absTime / rounds)
+
+    return avgFoodEaten * 1000 + avgTimeSurvived * 100 + avgScore * 10,
 
 def evaluateByFood(individual):
     ## execute 4 times to get an average
@@ -377,13 +391,10 @@ def evaluateByFood(individual):
 
     return avgFoodEaten
 
-toolbox.register("evaluate", evaluate)
-toolbox.register("select", tools.selTournament, tournsize=5)
-toolbox.register("mate", gp.cxOnePointLeafBiased, termpb=0.05)
-# toolbox.register("mate", gp.cxOnePoint)
-toolbox.register("expr_mut", gp.genFull, min_=0, max_=3)
+toolbox.register("evaluate", stepsFitness)
+toolbox.register("select", tools.selRoulette)
+toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
-# toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=7))
@@ -392,69 +403,27 @@ def main(seed = 118):
     global snake
     global pset
     global toolbox
-
-    # pool = multiprocessing.Pool()
-    # toolbox.register("map", pool.map)
     
     random.seed(seed)
 
-    pop = toolbox.population(n=500)
+    pop = toolbox.population(n=2000)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     stats_size = tools.Statistics(len)
-    # mstats = tools.MultiStatistics(fitness=stats_fit)
     mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
     mstats.register("avg", numpy.mean)
     mstats.register("std", numpy.std)
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
-    # mstats.register("q",   lambda a: numpy.percentile(a, [25, 75]))
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.45, 50, stats=mstats, halloffame=hof, verbose=True)
-
-
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.6, 200, stats=mstats, halloffame=hof, verbose=True)
 
     best = tools.selBest(pop, 1)[0]
-
-    # foodFitness = evaluateByFood(best)
-
-    # print best
-    # print evaluateByFood(best)
-    # print 
-    # return evaluate(best)[0] 
-
-    # import pygraphviz as pgv
-    # nodes, edges, labels = gp.graph(best)
-    # g = pgv.AGraph(nodeSep=1.0)
-    # g.add_nodes_from(nodes)
-    # g.add_edges_from(edges)
-    # g.layout(prog="dot")
-    # for i in nodes:
-    #     n = g.get_node(i)
-    #     n.attr["label"] = labels[i]
-    # g.draw("tree.pdf")
-
-    # if raw_input("Display best run? Y/N...") in ['Y', 'y']:
-    #     random.seed()
-    #     displayStrategyRun(best)
-
-    import cPickle as pickle
-
-    # pickle.dump(log, open('fitness/fitness-{}.txt'.format(seed), 'wb'), -1)
-    pickle.dump({
-            'foodsEaten': evaluateByFood(best)
-        }, open('initialisation/genFull/best-{}.txt'.format(seed), 'wb'), -1)
-
-
-    # with open('fitness-{}.txt'.format(seed), 'w') as f:
-        # f.truncate()
-        # f.write(str(log))
+    print evaluateByFood(best) # fitness by food
 
 
 ## THIS IS WHERE YOUR CORE EVOLUTIONARY ALGORITHM WILL GO #
 
 if __name__ == '__main__':
-    [f, t] = sys.argv[1:]
-    for i in xrange(int(f), int(t)):
-        main(i)
+    main()
